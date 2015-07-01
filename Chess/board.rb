@@ -1,11 +1,17 @@
 require_relative 'display'
 require_relative 'empty_square'
 require_relative 'piece'
+require_relative 'pawn'
+require_relative 'king'
+require_relative 'knight'
+require_relative 'rook'
+require_relative 'sliding_piece'
+require_relative 'stepping_piece'
 require 'colorize'
 require 'byebug'
 class Board
 
-  attr_accessor :display, :size, :current_player
+  attr_accessor :display, :size, :current_player, :selected_piece
   attr_reader :grid, :cursor_position
 
   def initialize(size)
@@ -14,24 +20,47 @@ class Board
     @display = Display.new(size)
     @cursor_position = @display.cursor_position
     @current_player = :white
+    @selected_piece = nil
   end
 
   def play
-    until game_over
+    until game_over?
       take_turns
     end
   end
 
+  def on_board?(pos)
+    pos.flatten.all? {|coord| coord.between?(0,7)}
+  end
+
+  def off_board?(pos)
+    !on_board?(pos)
+  end
+  def game_over?
+    false
+  end
+
   def setup_test_board
-    piece = Piece.new(:white, [0,0], false, self)
-    self[0,0] = piece
+    white_pawn = Pawn.new(:white, [4,4], false, self)
+    black_pawn = Pawn.new(:black, [3,3], false, self)
+    white_king = King.new(:white, [5,5], false, self)
+    black_king = King.new(:black, [2,2], false, self)
+    white_knight = Knight.new(:white, [5,6], false, self)
+    black_knight = Knight.new(:black, [2,5], false, self)
+    white_rook = Rook.new(:white, [0,0], false, self)
+    self[4,4] = white_pawn
+    self[3,3] = black_pawn
+    self[5,5] = white_king
+    self[2,2] = black_king
+    self[5,6] = white_knight
+    self[2,5] = black_knight
+    self[0,0] = white_rook
     render
   end
 
   def setup_real_board
   end
-  
-  private
+
 
   def [](row,col)
     @grid[row][col]
@@ -43,7 +72,10 @@ class Board
 
   def get_start_and_end_pos
     start_pos = get_selection
+    self.selected_piece = self[*start_pos]
+    render
     end_pos = get_selection
+    self.selected_piece = nil
     [start_pos, end_pos]
   end
 
@@ -82,7 +114,6 @@ class Board
     self[*pos].piece?
   end
 
-
   def valid_start_pos?(piece, start_pos)
     occupied?(start_pos) && current_player == piece.color
   end
@@ -103,6 +134,9 @@ class Board
       print_row = ""
       row.each_with_index do |square, square_idx|
         square_color = colorize_pos(row_idx, square_idx)
+        if highlight_valid_moves.include?([row_idx,square_idx])
+          square_color = :light_blue
+        end
         if [row_idx, square_idx] == display.cursor_position
           square_color = :yellow
         end
@@ -111,6 +145,10 @@ class Board
       end
       puts print_row
     end
+  end
+
+  def highlight_valid_moves
+    selected_piece.nil? ? [] : self.selected_piece.valid_moves
   end
 
   def get_selection
@@ -126,8 +164,4 @@ end
 
 board = Board.new(8)
 board.setup_test_board
-board.take_turns
-board.take_turns
-board.take_turns
-board.take_turns
-board.take_turns
+board.play

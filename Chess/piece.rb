@@ -1,7 +1,8 @@
+require 'byebug'
 class Piece
   attr_accessor :color, :pos, :board, :moved
 
-  def initialize(color, pos, moved, board)
+  def initialize(color, pos, moved=false, board)
     @color, @pos, @moved, @board = color, pos, moved, board
   end
 
@@ -22,15 +23,25 @@ class Piece
     self.moved = true
   end
 
-  def valid_moves
-    valid_moves = []
+  def moves
+    full_board = []
     board.size.times do |i|
       board.size.times do |j|
-        valid_moves << [i, j]
+        full_board << [i, j]
       end
     end
-    valid_moves.delete(pos)
-    valid_moves
+    full_board.delete(pos)
+    full_board
   end
 
+  def other_color
+    self.color == :white ? :black : :white
+  end
+
+  def valid_moves
+    self.moves.select do |pos|
+      debugger
+      board.on_board?(pos) && (board[*pos].empty? || board[*pos].color == other_color)
+    end
+  end
 end
