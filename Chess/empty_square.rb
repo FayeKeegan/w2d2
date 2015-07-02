@@ -16,4 +16,8 @@ class EmptySquare
     "   "
   end
 
+  def king?
+    false
+  end
+
 end

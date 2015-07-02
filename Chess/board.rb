@@ -1,66 +1,50 @@
 require_relative 'display'
 require_relative 'empty_square'
-require_relative 'piece'
 require_relative 'pawn'
 require_relative 'king'
 require_relative 'knight'
+require_relative 'queen'
+require_relative 'bishop'
 require_relative 'rook'
-require_relative 'sliding_piece'
-require_relative 'stepping_piece'
 require 'colorize'
 require 'byebug'
+
+
 class Board
 
-  attr_accessor :display, :size, :current_player, :selected_piece
+  attr_accessor :display, :current_player, :selected_piece
   attr_reader :grid, :cursor_position
 
-  def initialize(size)
-    @grid = Array.new(size) { Array.new(size) {EmptySquare.new} }
-    @size = size
+  def initialize
+    size = 8
+    @grid = Array.new(size) { Array.new(size) { EmptySquare.new } }
     @display = Display.new(size)
     @cursor_position = @display.cursor_position
     @current_player = :white
     @selected_piece = nil
   end
 
+  def setup_board
+    setup_pieces
+  end
+
   def play
-    until game_over?
-      take_turns
+    setup_board
+    until check_mate?
+      take_turn
+      switch_player
     end
+    puts " >>>> CHECK MATE: #{current_player} LOSES <<<< ".colorize(:red)
+    render
   end
 
   def on_board?(pos)
-    pos.flatten.all? {|coord| coord.between?(0,7)}
+    pos.flatten.all? { |coord| coord.between?(0, 7) }
   end
 
   def off_board?(pos)
     !on_board?(pos)
   end
-  def game_over?
-    false
-  end
-
-  def setup_test_board
-    white_pawn = Pawn.new(:white, [4,4], false, self)
-    black_pawn = Pawn.new(:black, [3,3], false, self)
-    white_king = King.new(:white, [5,5], false, self)
-    black_king = King.new(:black, [2,2], false, self)
-    white_knight = Knight.new(:white, [5,6], false, self)
-    black_knight = Knight.new(:black, [2,5], false, self)
-    white_rook = Rook.new(:white, [0,0], false, self)
-    self[4,4] = white_pawn
-    self[3,3] = black_pawn
-    self[5,5] = white_king
-    self[2,2] = black_king
-    self[5,6] = white_knight
-    self[2,5] = black_knight
-    self[0,0] = white_rook
-    render
-  end
-
-  def setup_real_board
-  end
-
 
   def [](row,col)
     @grid[row][col]
@@ -70,28 +54,31 @@ class Board
     @grid[row][col] = piece
   end
 
-  def get_start_and_end_pos
-    start_pos = get_selection
-    self.selected_piece = self[*start_pos]
-    render
-    end_pos = get_selection
-    self.selected_piece = nil
-    [start_pos, end_pos]
-  end
-
-  def take_turns
-    start_pos, end_pos = get_start_and_end_pos
-    if valid?(start_pos, end_pos)
-      place_piece(start_pos, end_pos)
-      switch_player
+  def take_turn
+    begin
       render
-    else
-      get_start_and_end_pos
+      start_pos, end_pos = get_start_and_end_pos
+      raise InCheckError.new unless move_into_check?(start_pos, end_pos)
+    rescue InCheckError
+      puts "CANT PUT INTO CHECK"
+      retry
     end
+    place_piece(start_pos, end_pos)
   end
 
   def switch_player
-    self.current_player = (self.current_player == :white) ? (:black) : (:white)
+    self.current_player = (current_player == :white) ? :black : :white
+  end
+
+  def dup
+    duped_board = Board.new
+    duped_board.current_player = current_player
+    grid.each_with_index do |row, row_idx|
+      row.each_with_index do |square, square_idx|
+        duped_board[row_idx,square_idx] = square.dup(duped_board) unless square.empty?
+      end
+    end
+    duped_board
   end
 
   def place_piece(start_pos, end_pos)
@@ -105,22 +92,92 @@ class Board
     self[*start_pos] = EmptySquare.new
   end
 
-  def valid?(start_pos, end_pos)
-    piece = self[*start_pos]
-    valid_start_pos?(piece, start_pos) && valid_end_pos?(piece, end_pos)
-  end
-
   def occupied?(pos)
     self[*pos].piece?
   end
 
-  def valid_start_pos?(piece, start_pos)
-    occupied?(start_pos) && current_player == piece.color
+  def setup_pieces
+    setup_pawns
+    setup_kings
+    setup_queens
+    setup_rooks
+    setup_knights
+    setup_bishops
   end
 
-  def valid_end_pos?(piece, end_pos)
-    valid_moves = piece.valid_moves
-    valid_moves.include?(end_pos)
+  def setup_pawns
+    (0..7).each do |i|
+      self[6, i] = Pawn.new(:white, [6,i], false, self)
+      self[1, i] = Pawn.new(:black, [1,i], false, self)
+    end
+  end
+
+  def setup_kings
+    self[0,4] = King.new(:black, [0,4], false, self)
+    self[7,4] = King.new(:white, [7,4], false, self)
+  end
+
+  def setup_queens
+    self[0,3] = Queen.new(:black, [0,3], false, self)
+    self[7,3] = Queen.new(:white, [7,3], false, self)
+  end
+
+  def setup_rooks
+    [0,7].each do |j|
+      self[0,j] = Rook.new(:black, [0,j], false, self)
+      self[7,j] = Rook.new(:white, [7,j], false, self)
+    end
+  end
+
+  def setup_knights
+    [1,6].each do |j|
+      self[0,j] = Knight.new(:black, [0,j], false, self)
+      self[7,j] = Knight.new(:white, [7,j], false, self)
+    end
+  end
+
+  def setup_bishops
+    [2,5].each do |j|
+      self[0,j] = Bishop.new(:black, [0,j], false, self)
+      self[7,j] = Bishop.new(:white, [7,j], false, self)
+    end
+  end
+
+  def in_check?
+    opponents_moves.include?(my_king)
+  end
+
+  def my_king
+    king = grid.flatten.select do |square|
+      square.king? && square.color == current_player
+    end
+    king.first.pos
+  end
+
+  def opponents_pieces
+    grid.flatten.select do |square|
+      square.piece? && square.color == other_color
+    end
+  end
+
+  def opponents_moves
+    moves = []
+    opponents_pieces.each do |piece|
+      moves += piece.valid_moves
+    end
+    moves
+  end
+
+  def other_color
+    current_player == :white ? :black : :white
+  end
+
+  def valid_selection?
+    selected_piece.piece? && selected_piece.color == current_player
+  end
+
+  def valid_end_pos?(end_pos)
+    selected_piece.valid_moves.include?(end_pos)
   end
 
   def colorize_pos(i,j)
@@ -130,8 +187,9 @@ class Board
   def render
     system "clear"
     puts "It is #{self.current_player.to_s}'s turn."
+    puts "    A  B  C  D  E  F  G  H "
     self.grid.each_with_index do |row, row_idx|
-      print_row = ""
+      print_row = " #{row_idx + 1} "
       row.each_with_index do |square, square_idx|
         square_color = colorize_pos(row_idx, square_idx)
         if highlight_valid_moves.include?([row_idx,square_idx])
@@ -145,6 +203,8 @@ class Board
       end
       puts print_row
     end
+    puts "in check: " + in_check?.to_s
+    nil
   end
 
   def highlight_valid_moves
@@ -160,8 +220,73 @@ class Board
     display.cursor_position
   end
 
+  def get_start_and_end_pos
+    begin
+      start_pos = get_selection
+      self.selected_piece = self[*start_pos]
+      raise InvalidSelectionError.new unless valid_selection?
+    rescue InvalidSelectionError
+      puts "Invalid start_pos"
+      self.selected_piece = nil
+      retry
+    end
+
+    render
+
+    begin
+      end_pos = get_selection
+      raise InvalidSelectionError.new unless valid_end_pos?(end_pos)
+    rescue InvalidSelectionError
+      puts "Invalid end_pos"
+      retry
+    end
+    self.selected_piece = nil
+    [start_pos, end_pos]
+  end
+
+  def move_into_check?(start_pos, end_pos)
+    duped_board = dup
+    puts "THIS IS DUPED BOARD >>>>>>>>>>>>>>>>>>>"
+    duped_board.render
+    puts "THIS IS DUPED BOARD >>>>>>>>>>>>>>>>>>>"
+    duped_board.place_piece(start_pos,end_pos)
+    puts "THIS IS DUPED BOARD with one move >>>>>>>>>>>>>>>>>>>"
+    duped_board.render
+    puts "THIS IS DUPED BOARD with one move>>>>>>>>>>>>>>>>>>>"
+    duped_board.current_player = current_player
+    if duped_board.in_check?
+      puts "CAN'T MOVE INTO CHECK"
+      return false
+    end
+    true
+  end
+
+  def my_pieces
+    grid.flatten.select do |square|
+      square.piece? && square.color == current_player
+    end
+  end
+
+  def check_mate?
+    return false unless in_check?
+    my_pieces.each do |piece|
+      start_pos = piece.pos
+      piece.valid_moves.each do |end_pos|
+        duped_board = dup
+        duped_board.place_piece(start_pos, end_pos)
+        return false unless duped_board.in_check?
+      end
+    end
+    true
+  end
+
 end
 
-board = Board.new(8)
-board.setup_test_board
+class InvalidSelectionError < StandardError
+end
+
+class InCheckError < StandardError
+end
+
+board = Board.new
 board.play

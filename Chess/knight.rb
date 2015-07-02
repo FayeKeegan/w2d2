@@ -1,22 +1,21 @@
 require_relative 'stepping_piece'
 require_relative 'piece'
 
-KNIGHT_DIFFS = [ [-2, -1],
-          [-2,  1],
-          [2,   1],
-          [2,  -1],
-          [1,   2],
-          [1,  -2],
-          [-1, -2],
-          [-1,  2]]
-
 class Knight < SteppingPiece
+  DIFFS = [ [-2, -1],
+            [-2,  1],
+            [2,   1],
+            [2,  -1],
+            [1,   2],
+            [1,  -2],
+            [-1, -2],
+            [-1,  2]]
   def initialize(color, pos, moved, board)
-    super(color, pos, moved, board, KNIGHT_DIFFS)
+    super
   end
 
   def to_s
-    self.color != :white ? " \u{2658} " : " \u{265E} "
+    color == :black ? " \u{2658} " : " \u{265E} "
   end
 
 end

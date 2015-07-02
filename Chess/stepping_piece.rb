@@ -2,15 +2,15 @@ require_relative 'piece'
 
 class SteppingPiece < Piece
 
-  def initialize(color, pos, moved, board, diffs)
-    super(color, pos, moved, board)
-    @diffs = diffs
+  def initialize(color, pos, moved, board)
+    super
   end
 
   def moves
+    x, y = pos
     moves = []
-    @diffs.each do |diff|
-      moves << [pos[0]+diff[0],pos[1]+diff[1]]
+    self.class::DIFFS.each do |dx, dy|
+      moves << [x + dx, y + dy]
     end
     moves
   end
