@@ -181,11 +181,15 @@ class Board
   end
 
   def colorize_pos(i,j)
-    (i + j).even? ? :red : :black
+    (i + j).even? ? :white : :gray
   end
+
 
   def render
     system "clear"
+    puts "MOVE CURSOR:      W ↑  |  A ←  |  S →  |  D  ↓  |"
+    puts "SELECT PIECE:     enter"
+    puts "Light blue squares indicate valid moves"
     puts "It is #{self.current_player.to_s}'s turn."
     puts "    A  B  C  D  E  F  G  H "
     self.grid.each_with_index do |row, row_idx|
